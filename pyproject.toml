@@ -1,0 +1,142 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "distillation"
+version = "0.1.0"
+description = "Local LLM distillation framework optimized for Apple Silicon (MLX + HuggingFace)."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Achyuth" }]
+keywords = ["llm", "distillation", "mlx", "apple-silicon", "lora", "qlora"]
+
+# ---------------------------------------------------------------------------
+# Runtime dependencies.
+#
+# We deliberately keep the *core* dependency set small so that Phase 1
+# (dataset generation via Ollama) runs without pulling the entire ML stack.
+# Heavier, backend-specific packages live behind optional extras below.
+# ---------------------------------------------------------------------------
+dependencies = [
+    "pydantic>=2.6",          # Typed, validated configuration models.
+    "pyyaml>=6.0",            # YAML experiment configs.
+    "httpx>=0.27",            # Async-capable HTTP client for the Ollama API.
+    "rich>=13.7",             # Human-friendly console logging / progress.
+    "tenacity>=8.2",          # Robust retry logic for network calls.
+    "typer>=0.12",            # Declarative, type-hint driven CLI.
+    "numpy>=1.26",            # Backend-agnostic array ops for losses/eval.
+]
+
+[project.optional-dependencies]
+# Apple-Silicon-native training/inference backend (default).
+mlx = ["mlx>=0.18", "mlx-lm>=0.18"]
+
+# PyTorch / HuggingFace PEFT backend (alternative, behind the same interface).
+peft = [
+    "torch>=2.3",
+    "transformers>=4.44",
+    "peft>=0.12",
+    "datasets>=2.20",
+    "accelerate>=0.33",
+]
+
+# Evaluation metrics (Phase 5).
+eval = [
+    "sacrebleu>=2.4",
+    "rouge-score>=0.1.2",
+    "bert-score>=0.3.13",
+    "matplotlib>=3.9",
+]
+
+# REST inference server (Phase 6).
+serve = ["fastapi>=0.111", "uvicorn>=0.30"]
+
+# Developer tooling.
+dev = [
+    "pytest>=8.2",
+    "pytest-cov>=5.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+    "types-pyyaml>=6.0",
+]
+
+[project.scripts]
+# Single unified CLI entrypoint; sub-commands map to each phase.
+distill = "distillation.scripts.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["distillation"]
+
+# ---------------------------------------------------------------------------
+# Ruff — linting + formatting.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["distillation", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",   # pycodestyle / pyflakes
+    "I",             # isort
+    "N",             # pep8-naming
+    "UP",            # pyupgrade
+    "B",             # flake8-bugbear
+    "C4",            # comprehensions
+    "SIM",           # simplify
+    "RUF",           # ruff-specific
+    "D",             # pydocstyle
+]
+ignore = [
+    "D203", "D213",  # Conflicting docstring rules; pick one convention.
+    "D105",          # Magic methods are self-documenting (__enter__/__exit__ etc.).
+    "D107",          # __init__ is documented in the owning class's docstring.
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]          # Tests don't require docstrings.
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+# ---------------------------------------------------------------------------
+# mypy — static typing.
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+# Heavy ML frameworks ship incomplete/loose type info; treat them as untyped
+# whether or not they're installed, so their imperfect signatures don't leak
+# spurious errors into our (validated) backend code. numpy is intentionally NOT
+# here — it has good stubs and the loss ops rely on them.
+[[tool.mypy.overrides]]
+module = ["mlx.*", "mlx_lm.*", "torch", "torch.*", "peft.*", "transformers.*"]
+follow_imports = "skip"
+ignore_missing_imports = true
+
+# Optional metric / plotting / serving deps: ignore only when not installed.
+[[tool.mypy.overrides]]
+module = [
+    "bert_score.*", "rouge_score.*", "sacrebleu.*",
+    "matplotlib", "matplotlib.*", "fastapi", "fastapi.*", "uvicorn", "uvicorn.*",
+]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# pytest.
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "integration: tests that require a running Ollama server (deselect with -m 'not integration').",
+]

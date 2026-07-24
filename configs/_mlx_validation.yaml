@@ -1,0 +1,42 @@
+# Minimal config to validate the real MLX training path end-to-end with a tiny
+# student model. Not a real distillation run — just proves the mechanics work.
+name: _mlxval
+seed: 42
+output_root: experiments
+
+teacher:
+  model: qwen3.5:2b          # only used if you run `distill generate`
+  generation:
+    max_tokens: 128
+    think: false             # qwen3.5 is a reasoning model; return the answer directly
+
+dataset:
+  prompts_path: prompts/seed_prompts.jsonl
+  generations_path: outputs/_mlxval/gen.jsonl
+  train_path: outputs/_mlxval/train.jsonl
+  val_path: outputs/_mlxval/val.jsonl
+  format: chat
+
+student:
+  model: mlx-community/Qwen2.5-0.5B-Instruct-4bit   # small, fast download
+  backend: mlx
+  lora:
+    rank: 8
+    alpha: 16.0
+    dropout: 0.0
+    num_layers: 4
+
+training:
+  learning_rate: 0.0002
+  epochs: 1
+  batch_size: 1
+  gradient_accumulation_steps: 2
+  max_seq_length: 256
+  checkpoint_interval: 2
+  eval_interval: 2
+  log_interval: 1
+
+evaluation:
+  metrics: [bleu, rouge]
+  num_samples: 4
+  report_path: outputs/_mlxval/report.html

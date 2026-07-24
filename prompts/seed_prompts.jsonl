@@ -1,0 +1,8 @@
+{"id": 1, "prompt": "Explain Redis in simple terms and give two real-world use cases."}
+{"id": 2, "prompt": "What is the difference between a process and a thread?"}
+{"id": 3, "prompt": "Write a Python function that checks whether a string is a palindrome, ignoring case and punctuation."}
+{"id": 4, "prompt": "Explain how HTTPS keeps data secure, step by step."}
+{"id": 5, "prompt": "Summarize the tradeoffs between SQL and NoSQL databases."}
+{"id": 6, "prompt": "What is gradient descent and why does the learning rate matter?"}
+{"id": 7, "prompt": "Describe the CAP theorem and what it means for distributed systems."}
+{"id": 8, "prompt": "Explain the concept of LoRA (Low-Rank Adaptation) for fine-tuning large language models."}

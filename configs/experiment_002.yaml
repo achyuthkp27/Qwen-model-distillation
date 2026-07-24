@@ -1,0 +1,55 @@
+# =============================================================================
+# Experiment 002 — Sentiment classification (positive / negative / neutral).
+# A LABELLED task, so real ACCURACY applies (unlike open-ended Alpaca).
+# Teacher qwen3.5:9b → student Qwen3-4B, response distillation.
+# =============================================================================
+name: experiment_002
+seed: 42
+output_root: experiments
+
+teacher:
+  model: qwen3.5:9b
+  generation:
+    temperature: 0.0        # deterministic — we want the single best label
+    top_p: 1.0
+    max_tokens: 16          # one-word answer only
+    think: false            # reasoning model: return the label directly
+
+dataset:
+  prompts_path: prompts/reviews_train.jsonl
+  generations_path: outputs/experiment_002/teacher_generations.jsonl
+  train_path: outputs/experiment_002/train.jsonl
+  val_path: outputs/experiment_002/val.jsonl
+  format: chat
+  val_fraction: 0.1
+
+student:
+  model: mlx-community/Qwen3-4B-4bit
+  backend: mlx
+  lora:
+    rank: 16
+    alpha: 32.0
+    dropout: 0.05
+    target_modules: [q_proj, k_proj, v_proj, o_proj]
+    num_layers: -1
+
+training:
+  learning_rate: 0.00003    # was 2e-4 → caused mode collapse; 10x lower is stable
+  epochs: 2                  # was 3 → late-epoch divergence
+  batch_size: 1
+  gradient_accumulation_steps: 16   # larger effective batch → smoother gradients
+  max_seq_length: 512
+  warmup_steps: 20
+  max_grad_norm: 1.0
+  checkpoint_interval: 25   # checkpoint often so we can pick the best
+  eval_interval: 25         # watch val loss closely to catch any collapse
+  log_interval: 5
+
+distillation:
+  strategy: response
+
+evaluation:
+  metrics: [bleu, rouge]
+  num_samples: 20
+  eval_prompts_path: prompts/reviews_test.jsonl
+  report_path: outputs/experiment_002/report.html

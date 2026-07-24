@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Framework artifacts (generated; keep the dirs, ignore contents)
+checkpoints/*
+logs/*
+outputs/*
+experiments/*
+!**/.gitkeep
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

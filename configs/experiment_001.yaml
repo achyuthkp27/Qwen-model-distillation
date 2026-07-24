@@ -1,0 +1,82 @@
+# =============================================================================
+# Experiment 001 — qwen3.5:9b (teacher) -> Qwen3-4B MLX (student) distillation.
+#
+# One YAML == one ExperimentConfig (see distillation/config/models.py).
+# Only `name` and `dataset.prompts_path` are strictly required; every other
+# field below shows its default so this doubles as documentation.
+# =============================================================================
+name: experiment_001
+seed: 42
+output_root: experiments
+
+# --- Phase 1: teacher --------------------------------------------------------
+teacher:
+  model: qwen3.5:9b        # local reasoning teacher (via Ollama)
+  ollama:
+    base_url: http://localhost:11434
+    request_timeout_s: 600.0
+    max_retries: 3
+    max_concurrency: 1
+  generation:
+    temperature: 0.7
+    top_p: 0.9
+    top_k: 40
+    max_tokens: 512
+    seed: null
+    system_prompt: null
+    # qwen3.5 is a reasoning model: disable the <think> stream so we distill
+    # the final answers (and don't burn the token budget on reasoning).
+    think: false
+
+# --- Phase 1/2: dataset ------------------------------------------------------
+dataset:
+  prompts_path: prompts/alpaca_prompts.jsonl
+  generations_path: outputs/experiment_001/teacher_generations.jsonl
+  train_path: outputs/experiment_001/train.jsonl
+  val_path: outputs/experiment_001/val.jsonl
+  format: chat            # instruction | chat | completion
+  val_fraction: 0.1
+  shuffle: true
+
+# --- Phase 3: student + LoRA -------------------------------------------------
+student:
+  model: mlx-community/Qwen3-4B-4bit
+  backend: mlx           # mlx | peft
+  lora:
+    rank: 64                 # more capacity than 16; still tiny vs the 2.5GB base
+    alpha: 128.0             # rule of thumb: alpha ~= 2x rank
+    dropout: 0.05
+    # Adapt attention AND MLP projections — broader coverage improves LoRA quality.
+    target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+    num_layers: -1
+    quantize: false
+
+# --- Phase 3: training loop --------------------------------------------------
+training:
+  learning_rate: 0.0001
+  epochs: 2
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  max_seq_length: 1024      # keeps the 4B LoRA comfortably within 24GB
+  warmup_steps: 10
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+  checkpoint_interval: 50
+  eval_interval: 50
+  log_interval: 5
+
+# --- Phase 4: distillation strategy -----------------------------------------
+distillation:
+  strategy: response     # response | logit | hidden_state | attention
+  temperature: 2.0       # reserved for future logit/KL distillation
+  alpha_ce: 0.5
+  alpha_kd: 0.5
+
+# --- Phase 5: evaluation -----------------------------------------------------
+evaluation:
+  metrics: [bleu, rouge, latency, tokens_per_sec]   # bertscore is a heavy extra download
+  num_samples: 20                                    # keep eval fast (teacher re-generates these)
+  # Held-out prompts (tail of the Alpaca file) so we don't score on training data.
+  eval_prompts_path: prompts/alpaca_eval_holdout.jsonl
+  bertscore_model: microsoft/deberta-xlarge-mnli
+  report_path: outputs/experiment_001/report.html
